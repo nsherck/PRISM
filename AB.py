@@ -9,6 +9,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy as sp
 
+
+
 sigma = 1.
 scale = 1
 kbT = 1.
@@ -142,7 +144,7 @@ for _i,_xfrac in enumerate([1.]):
     sys.closure['A','B'] = pyPRISM.closure.HyperNettedChain(apply_hard_core=False)
     sys.closure['B','B'] = pyPRISM.closure.HyperNettedChain(apply_hard_core=False)
     
-    _xfrac = 1.
+    _xfrac = 1. # control the strength of cross interaction
     print('Using HNC closure. Density: {}'.format(sys.density))
     uAB = (7.77817-uAA)*_xfrac + uAA
     print('uAB {} and uAA {}'.format(uAB,uAA))
@@ -189,7 +191,7 @@ for _i,_xfrac in enumerate([1.]):
     np.savetxt('RDF_AA.dat',np.column_stack((x,RDF_AA)))
     np.savetxt('RDF_AB.dat',np.column_stack((x,RDF_AB)))
     data = np.loadtxt('A_RDF.txt',delimiter=',')
-    data1 = np.loadtxt('RDF_POL_POL_uaa_2.0.dat')
+    data1 = np.loadtxt('RDF_POL_POL.dat') # A-A interacting from MD with uAB = 7.77817
     plt.plot(data[:,0],data[:,1],'or')
     plt.plot(data1[:,0]*10,data1[:,1],'ob')
     plt.plot(x, RDF_AA, "-r")
