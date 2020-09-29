@@ -14,8 +14,8 @@ import scipy as sp
 sigma = 1.
 scale = 1
 kbT = 1.
-dr = 0.01
-power = 10 # 2**power == # grid points; therefore length = dr*2**power
+dr = 0.003
+power = 14 # 2**power == # grid points; therefore length = dr*2**power
 
 sys = pyPRISM.System(['A'],kT=kbT)
 sys.domain = pyPRISM.Domain(dr=dr,length=2**power)
@@ -51,11 +51,11 @@ for _i, xfact in enumerate(scales):
     
     _iter = 0
     Norm = 1
-    alpha = 0.9
+    alpha = 0.02
     while Norm > 1e-4: # custom update 
         if _iter == 0:
             gamma_in = guess_1
-        out = PRISM.cost(gamma_in)
+        out = PRISM.cost1(gamma_in)
         print(out[0].shape) # GammaOut
         print(out[1].shape) # GammaIng
         
@@ -118,10 +118,10 @@ plt.xlim(0,10)
 plt.savefig('Gamma.png')
 plt.show()
 plt.close()
-matrix_in[:,0,0] = 0.5*guess_1
-matrix_in[:,0,1] = 0.25*guess_1
-matrix_in[:,1,0] = 0.25*guess_1
-matrix_in[:,1,1] = 0.5*guess_1
+matrix_in[:,0,0] = 0.5*gamma_in
+matrix_in[:,0,1] = 0.25*gamma_in
+matrix_in[:,1,0] = 0.25*gamma_in
+matrix_in[:,1,1] = 0.5*gamma_in
 #matrix_in[:,1,1] = []
 matrix_in = matrix_in.flatten()
 #guess_2[0:512] = guess_1
@@ -144,7 +144,7 @@ for _i,_xfrac in enumerate([1.]):
     sys.closure['A','B'] = pyPRISM.closure.HyperNettedChain(apply_hard_core=False)
     sys.closure['B','B'] = pyPRISM.closure.HyperNettedChain(apply_hard_core=False)
     
-    _xfrac = 1. # control the strength of cross interaction
+    _xfrac = 0.1 # control the strength of cross interaction
     print('Using HNC closure. Density: {}'.format(sys.density))
     uAB = (7.77817-uAA)*_xfrac + uAA
     print('uAB {} and uAA {}'.format(uAB,uAA))
@@ -153,15 +153,15 @@ for _i,_xfrac in enumerate([1.]):
     
     _iter = 0
     Norm = 1
-    alpha = 0.99
-    while Norm > 0.01:
+    alpha = 0.999
+    while Norm > 0.2:
         if _iter == 0:
             gamma_in = guess_1 # tried playing around with seed based off one component
-        out = PRISM.cost(gamma_in)
+        out = PRISM.cost1(gamma_in)
         print(out[0].shape) # GammaOut
         print(out[1].shape) # GammaIn
 
-        gamma_new = np.add(alpha*out[1],(1-alpha)*out[0])
+        gamma_new = alpha*out[1] + (1-alpha)*out[0]
         #gamma_new = np.multiply(sys.domain.r,gamma_new)
         print(gamma_new.shape)
         Norm = cust_norm(out[1],out[0])

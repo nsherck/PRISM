@@ -110,8 +110,9 @@ class PRISM:
         # this is redundant because these array's will be overwritten with copies and
         # then their space will be inferred from their parent MatrixArrays
         self.directCorr = MatrixArray(length=sys.domain.length,rank=sys.rank,space=Space.Real,types=sys.types)
+        self.directCorrOut = MatrixArray(length=sys.domain.length,rank=sys.rank,space=Space.Real,types=sys.types)
         self.totalCorr  = MatrixArray(length=sys.domain.length,rank=sys.rank,space=Space.Fourier,types=sys.types)
-        self.GammaIn    = MatrixArray(length=sys.domain.length,rank=sys.rank,space=Space.Real,types=sys.types)
+        self.GammaIn    = MatrixArray(length=sys.domain.length,rank=sys.rank,space=Space.Fourier,types=sys.types)
         self.GammaOut   = MatrixArray(length=sys.domain.length,rank=sys.rank,space=Space.Real,types=sys.types)
         self.OC         = MatrixArray(length=sys.domain.length,rank=sys.rank,space=Space.Fourier,types=sys.types)
         self.I          = IdentityMatrixArray(length=sys.domain.length,rank=sys.rank,space=Space.Fourier,types=sys.types)
@@ -166,10 +167,72 @@ class PRISM:
         
         self.sys.domain.MatrixArray_to_real(self.GammaOut)
         
-        self.y = self.sys.domain.long_r*(self.GammaOut.data - self.GammaIn.data)
+        #self.y = self.sys.domain.long_r*(self.GammaOut.data - self.GammaIn.data)
         
-        return self.y.reshape((-1,))
+        
+        
+        #return self.y.reshape((-1,))
+        return [self.sys.domain.long_r*self.GammaOut.data, self.sys.domain.long_r*self.GammaIn.data]
     
+    def cost1(self,x):
+        r'''Cost function 
+        
+        There are likely several cost functions that could be imagined using
+        the PRISM equations. In this case we formulate a self-consistent 
+        formulation where we expect the input of the PRISM equations to be
+        identical to the output. 
+
+        .. image:: ../../img/numerical_method.svg
+            :width: 300px
+        
+        The goal of the solve method is to numerically optimize the input (:math:`r \gamma_{in}`) 
+        so that the output (:math:`r(\gamma_{in}-\gamma_{out})`) is minimized to zero.
+        
+        '''
+        self.x = x #store input
+
+        # The np.copy is important otherwise x saves state between calls to
+        # this function.
+        #NSOUT self.GammaIn.data = np.copy(x.reshape((-1,self.sys.rank,self.sys.rank)))
+        #NSOUT self.GammaIn     /= self.sys.domain.long_r
+        
+        self.directCorr.data = np.copy(x.reshape((-1,self.sys.rank,self.sys.rank)))
+        self.sys.domain.MatrixArray_to_fourier(self.directCorr)
+        
+        # do OZ equation
+        self.OC = self.omega.dot(self.directCorr)
+        self.IOC = self.I - self.OC
+        self.IOC.invert(inplace=True)
+        
+        # get out h(r)
+        self.totalCorr  = self.IOC.dot(self.OC).dot(self.omega)
+        self.totalCorr /= self.sys.density.pair
+        
+        # calculate gammain
+
+        self.GammaIn = self.totalCorr - self.directCorr
+        self.sys.domain.MatrixArray_to_real(self.GammaIn) # convert self.GammaIn to real matrix
+
+        # directCorr is calculated directly in Real space but immediately 
+        # inverted to Fourier space. We must reset this from the last call.
+        #NSOUT self.directCorr.space = Space.Real 
+        for (i,j),(t1,t2),closure in self.sys.closure.iterpairs():
+            if isinstance(closure,AtomicClosure):
+                self.directCorrOut[t1,t2] = closure.calculate(self.sys.domain.r,self.GammaIn[t1,t2])
+            elif isinstance(closure,MolecularClosure):
+                raise NotImplementedError('Molecular closures are untested and not fully implemented.')
+                self.directCorrOut[t1,t2] = closure.calculate(self.GammaIn[t1,t2],self.omega[t1,t1],self.omega[t2,t2])
+            else:
+                raise ValueError('Closure type not recognized')
+        
+        
+        self.sys.domain.MatrixArray_to_real(self.directCorr)
+        #self.y = self.sys.domain.long_r*(self.GammaOut.data - self.GammaIn.data)
+        print(self.directCorrOut.space)
+        print(self.directCorr.space)
+        #return self.y.reshape((-1,))
+        return [(self.directCorrOut.data).reshape((-1,)), (self.directCorr.data).reshape((-1,))]
+        
     def solve(self,guess=None,method='krylov',options=None):
         '''Attempt to numerically solve the PRISM equations
         
